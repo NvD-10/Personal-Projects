@@ -1,11 +1,12 @@
 from collections import defaultdict
 from datetime import date, datetime
+import json
 
 class Transaction:
     def __init__(self, category: str, amount: float, day: date, discription = ""):
         self.__category = category
         self.__amount = amount
-        self.__date = day
+        self.__date = day.strftime("%B %d, %Y")
         self.__discription = discription
     
     def getCategory(self):
@@ -69,21 +70,23 @@ class TransactionManager:
             print("No transactions made yet")
     
     def saveToFile(self):
-        with open("transactions.txt", "w") as file:
-            for category in self.__transactions:
-                for transaction in self.__transactions[category]:
-                    file.write(f"{category};{str(transaction.getAmount())};{transaction.getDate()};{transaction.getDiscription()}\n")
+        transactions = {key: [event.__dict__ for event in value] for key, value in self.__transactions.items()}
+        with open("transactions.json", "w") as file:
+            json.dump(transactions, file, indent=2)
     
     def loadFromFile(self):
         try:
-            with open("transactions.txt", "r") as file:
-                content = file.readlines()
-                for line in content:
-                    category, amount, day, discription = line.split(';')
-                    self.addTransaction(Transaction(category, float(amount), datetime.strptime(day, "%B %d, %Y"), discription.strip()))
+            with open("transactions.json", "r") as file:
+                transactions = json.load(file)
+                self.__transactions = {
+                    key: [Transaction(key, item['_Transaction__amount'],
+                    datetime.strptime(item['_Transaction__date'], "%B %d, %Y"),
+                    item['_Transaction__discription']) for item in value] for key, value in transactions.items()
+                    }
         
         except FileNotFoundError:
-            with open("transactions.txt", "w") as file: pass
+            with open("transactions.json", "w") as file: pass
+        except json.JSONDecodeError: pass
     
 class Budget:
     def __init__(self, transaction_manager: TransactionManager):
@@ -120,20 +123,17 @@ class Budget:
             print("No budget set yet")
         
     def saveToFile(self):
-        with open("budget.txt", "w") as file:
-            for category in self.__budget:
-                file.write(f"{category};{str(self.__budget[category])}\n")
+        with open("budget.json", "w") as file:
+            json.dump(self.__budget, file, indent=2)
     
     def loadFromFile(self):
         try:
-            with open("budget.txt", "r") as file:
-                content = file.readlines()
-                for line in content:
-                    category, amount = line.split(';')
-                    self.setBudget(category, float(amount))
+            with open("budget.json", "r") as file:
+                self.__budget = json.load(file)
         
         except FileNotFoundError:
-            with open("budget.txt", "w") as file: pass
+            with open("budget.json", "w") as file: pass
+        except json.JSONDecodeError: pass
 
 def menu():
     print("\nPersonal Finance Tracker")
@@ -161,7 +161,7 @@ def main():
                 category = input("Enter category: ")
                 amount = float(input("Enter amount: "))
                 discription = input("Enter discription(optional): ")
-                transaction_manager.addTransaction(Transaction(category.capitalize(), amount, date.today().strftime("%B %d, %Y"), discription))
+                transaction_manager.addTransaction(Transaction(category.capitalize(), amount, date.today(), discription))
                 print("Transaction added successfully")
             except ValueError:
                 print("Invalid input!")
